@@ -1,0 +1,24 @@
+{
+  "lot_id": "LOT-2231",
+  "candidate_causes": [
+    {
+      "step": "etch",
+      "tool_id": "ETCH-07",
+      "parameter": "chamber_pressure",
+      "spatial_signature": "edge-ring",
+      "probability": null,
+      "risk_score": 0.84,
+      "confidence_basis": "composite_heuristic_v1",
+      "sample_size": 14,
+      "evidence": "Chamber pressure 3.2 sigma above nominal spec on 14 of 16 affected lots; Cpk degraded to 0.91 (threshold 1.33)."
+    }
+  ],
+  "at_risk_upcoming_batches": [
+    {
+      "lot_id": "LOT-2245",
+      "probability": null,
+      "risk_score": 0.76,
+      "matched_signature": "edge-ring"
+    }
+  ]
+}
