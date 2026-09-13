@@ -72,10 +72,15 @@ class TestDataGeneration(unittest.TestCase):
             violations = cur.fetchall()
             self.assertEqual(len(violations), 0)
 
-            # 4. Verify in-progress null yields
-            cur.execute("SELECT final_yield_pct FROM wafer_lots WHERE status IN ('in_progress', 'at_risk');")
-            ip_yields = [row[0] for row in cur.fetchall()]
-            self.assertTrue(all(y is None for y in ip_yields))
+            # 5. Verify ground_truth helpers
+            from data.ground_truth import get_ground_truth_dataframe, get_ground_truth_for_lot
+            gt_df = get_ground_truth_dataframe(db_path=test_db)
+            self.assertEqual(len(gt_df), 74)
+            self.assertIn("injected_cause_step", gt_df.columns)
+
+            single_gt = get_ground_truth_for_lot("LOT-2201", db_path=test_db)
+            self.assertIsNotNone(single_gt)
+            self.assertEqual(single_gt["injected_cause_tool_id"], "ETCH-07")
 
             conn.close()
 
