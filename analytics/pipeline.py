@@ -17,6 +17,9 @@ from analytics.root_cause import RootCauseRanker
 
 
 DEFAULT_DB_PATHS = [
+    "bob_fab.db",
+    "data/bob_fab.db",
+    "../bob_fab.db",
     "data/fab_data.db",
     "fab_data.db",
     "fab.db",

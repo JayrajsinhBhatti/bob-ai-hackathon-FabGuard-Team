@@ -23,6 +23,8 @@ from .config import (
     LLM_MODEL,
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
+    GROQ_API_KEY,
+    GROQ_MODEL,
 )
 
 
@@ -97,80 +99,97 @@ def _dispatch_chat(messages: list, client: Any) -> str:
     """
     provider = LLM_PROVIDER.lower()
 
-    if provider == "gemini":
-        from google.genai import types as genai_types
+    try:
+        if provider == "gemini":
+            from google.genai import types as genai_types
 
-        # Gemini uses a different message format — convert from OpenAI style
-        # System prompt → first user turn with explicit instruction wrapper
-        gemini_contents = []
-        system_msg = None
-        for msg in messages:
-            if msg["role"] == "system":
-                system_msg = msg["content"]
-            elif msg["role"] == "user":
-                if system_msg and not gemini_contents:
-                    # Prepend system to first user message for Gemini
-                    gemini_contents.append(
-                        genai_types.Content(
-                            role="user",
-                            parts=[genai_types.Part(text=f"[SYSTEM INSTRUCTIONS]\n{system_msg}\n\n[USER]\n{msg['content']}")]
+            # Gemini uses a different message format — convert from OpenAI style
+            # System prompt → first user turn with explicit instruction wrapper
+            gemini_contents = []
+            system_msg = None
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_msg = msg["content"]
+                elif msg["role"] == "user":
+                    if system_msg and not gemini_contents:
+                        # Prepend system to first user message for Gemini
+                        gemini_contents.append(
+                            genai_types.Content(
+                                role="user",
+                                parts=[genai_types.Part(text=f"[SYSTEM INSTRUCTIONS]\n{system_msg}\n\n[USER]\n{msg['content']}")]
+                            )
                         )
-                    )
-                    system_msg = None
-                else:
+                        system_msg = None
+                    else:
+                        gemini_contents.append(
+                            genai_types.Content(
+                                role="user",
+                                parts=[genai_types.Part(text=msg["content"])]
+                            )
+                        )
+                elif msg["role"] == "assistant":
                     gemini_contents.append(
                         genai_types.Content(
-                            role="user",
+                            role="model",
                             parts=[genai_types.Part(text=msg["content"])]
                         )
                     )
-            elif msg["role"] == "assistant":
-                gemini_contents.append(
-                    genai_types.Content(
-                        role="model",
-                        parts=[genai_types.Part(text=msg["content"])]
-                    )
-                )
 
-        response = client.models.generate_content(
-            model=LLM_MODEL,
-            contents=gemini_contents,
-            config=genai_types.GenerateContentConfig(
+            response = client.models.generate_content(
+                model=LLM_MODEL,
+                contents=gemini_contents,
+                config=genai_types.GenerateContentConfig(
+                    temperature=LLM_TEMPERATURE,
+                    max_output_tokens=LLM_MAX_TOKENS,
+                ),
+            )
+            return response.text.strip()
+
+        elif provider in ("groq", "openai"):
+            response = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
                 temperature=LLM_TEMPERATURE,
-                max_output_tokens=LLM_MAX_TOKENS,
-            ),
-        )
-        return response.text.strip()
+                max_tokens=LLM_MAX_TOKENS,
+            )
+            return response.choices[0].message.content.strip()
 
-    elif provider in ("groq", "openai"):
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=messages,
-            temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
-        )
-        return response.choices[0].message.content.strip()
+        elif provider == "anthropic":
+            # Anthropic separates system from messages
+            system_content = ""
+            chat_messages = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_content = msg["content"]
+                else:
+                    chat_messages.append(msg)
 
-    elif provider == "anthropic":
-        # Anthropic separates system from messages
-        system_content = ""
-        chat_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_content = msg["content"]
-            else:
-                chat_messages.append(msg)
+            response = client.messages.create(
+                model=LLM_MODEL,
+                max_tokens=LLM_MAX_TOKENS,
+                system=system_content,
+                messages=chat_messages,
+            )
+            return response.content[0].text.strip()
 
-        response = client.messages.create(
-            model=LLM_MODEL,
-            max_tokens=LLM_MAX_TOKENS,
-            system=system_content,
-            messages=chat_messages,
-        )
-        return response.content[0].text.strip()
+        else:
+            raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
 
-    else:
-        raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
+    except Exception as exc:
+        if provider != "groq" and GROQ_API_KEY:
+            try:
+                from groq import Groq
+                groq_client = Groq(api_key=GROQ_API_KEY)
+                res = groq_client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=messages,
+                    temperature=LLM_TEMPERATURE,
+                    max_tokens=LLM_MAX_TOKENS,
+                )
+                return res.choices[0].message.content.strip()
+            except Exception:
+                pass
+        raise exc
 
 
 # ---------------------------------------------------------------------------

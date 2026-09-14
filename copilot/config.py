@@ -13,6 +13,12 @@ load_dotenv()
 # --- Model & Provider Configuration ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
 LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+
+# If provider is groq and model still points to gemini default, switch to groq default
+if LLM_PROVIDER == "groq" and ("gemini" in LLM_MODEL or not LLM_MODEL):
+    LLM_MODEL = GROQ_MODEL
+
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
 

@@ -23,6 +23,8 @@ from .config import (
     LLM_TEMPERATURE,
     LLM_MAX_TOKENS,
     DOE_CAVEAT_STRING,
+    GROQ_API_KEY,
+    GROQ_MODEL,
 )
 
 
@@ -86,52 +88,99 @@ Rules:
 Write only the explanation paragraph (no headings, no bullet points)."""
 
 
-def _call_llm_for_explanation(prompt: str, client: Any) -> str:
+def _generate_fallback_explanation(cause: dict, rank: int, lot_id: str) -> str:
+    """Generate deterministic domain explanation when LLM quota is exhausted or unavailable."""
+    if not cause:
+        return f"Yield excursion identified on lot {lot_id}. {DOE_CAVEAT_STRING}"
+    step = cause.get("step", "unknown")
+    tool_id = cause.get("tool_id", "unknown")
+    param = cause.get("parameter", "unknown")
+    spatial = cause.get("spatial_signature", "unknown")
+    evidence = cause.get("evidence", "Sensor telemetry deviations observed.")
+    conf_phrase = _build_confidence_phrase(cause)
+    return (
+        f"The #{rank} leading candidate cause for lot {lot_id} is {param} on tool {tool_id} "
+        f"during the {step} step, exhibiting {conf_phrase}. "
+        f"Wafer defect maps correlate with a {spatial} spatial signature. "
+        f"{evidence} {DOE_CAVEAT_STRING}"
+    )
+
+
+def _call_llm_for_explanation(
+    prompt: str,
+    client: Any,
+    cause: dict = None,
+    rank: int = 1,
+    lot_id: str = "UNKNOWN",
+) -> str:
     """
-    Dispatch LLM call based on provider and return the response text.
+    Dispatch LLM call based on provider with automatic Groq failover and
+    deterministic fallback when quotas are exhausted.
     """
     provider = LLM_PROVIDER.lower()
 
-    if provider == "gemini":
-        from google.genai import types as genai_types
-        response = client.models.generate_content(
-            model=LLM_MODEL,
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
+    try:
+        if provider == "gemini":
+            from google.genai import types as genai_types
+            response = client.models.generate_content(
+                model=LLM_MODEL,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=LLM_TEMPERATURE,
+                    max_output_tokens=LLM_MAX_TOKENS,
+                ),
+            )
+            return response.text.strip()
+
+        elif provider == "groq":
+            response = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[{"role": "user", "content": prompt}],
                 temperature=LLM_TEMPERATURE,
-                max_output_tokens=LLM_MAX_TOKENS,
-            ),
-        )
-        return response.text.strip()
+                max_tokens=LLM_MAX_TOKENS,
+            )
+            return response.choices[0].message.content.strip()
 
-    elif provider == "groq":
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
-        )
-        return response.choices[0].message.content.strip()
+        elif provider == "openai":
+            response = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=LLM_TEMPERATURE,
+                max_tokens=LLM_MAX_TOKENS,
+            )
+            return response.choices[0].message.content.strip()
 
-    elif provider == "openai":
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
-        )
-        return response.choices[0].message.content.strip()
+        elif provider == "anthropic":
+            response = client.messages.create(
+                model=LLM_MODEL,
+                max_tokens=LLM_MAX_TOKENS,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text.strip()
 
-    elif provider == "anthropic":
-        response = client.messages.create(
-            model=LLM_MODEL,
-            max_tokens=LLM_MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text.strip()
+        else:
+            raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
 
-    else:
-        raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
+    except Exception as exc:
+        # If primary is Gemini and failed (e.g. 429 quota exhausted), attempt Groq failover
+        if provider != "groq" and GROQ_API_KEY:
+            try:
+                from groq import Groq
+                groq_client = Groq(api_key=GROQ_API_KEY)
+                res = groq_client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=LLM_TEMPERATURE,
+                    max_tokens=LLM_MAX_TOKENS,
+                )
+                return res.choices[0].message.content.strip()
+            except Exception:
+                pass
+
+        # Final resilient fallback: domain template conforming strictly to rules
+        if cause is not None:
+            return _generate_fallback_explanation(cause, rank, lot_id)
+        raise exc
 
 
 def _build_batch_summary(findings: dict) -> str:
@@ -201,7 +250,9 @@ def explain_lot_findings(findings: dict, client: Any = None) -> dict:
     explanations = []
     for rank, cause in enumerate(causes, start=1):
         prompt = _build_explanation_prompt(cause, rank, lot_id)
-        explanation_text = _call_llm_for_explanation(prompt, client)
+        explanation_text = _call_llm_for_explanation(
+            prompt, client, cause=cause, rank=rank, lot_id=lot_id
+        )
 
         explanations.append({
             "rank": rank,
