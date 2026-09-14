@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RootCauseFindingsContract",
+  "description": "Standard contract for root_cause_findings between Analytics Core (Person B) and GenAI Copilot (Person C) & Backend (Person D)",
+  "type": "object",
+  "required": ["lot_id", "candidate_causes", "at_risk_upcoming_batches"],
+  "properties": {
+    "lot_id": {
+      "type": "string",
+      "pattern": "^LOT-[0-9]{4}$"
+    },
+    "candidate_causes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "tool_id",
+          "parameter",
+          "spatial_signature",
+          "confidence_basis",
+          "sample_size",
+          "evidence"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": ["litho", "etch", "cvd", "cmp", "implant"]
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "parameter": {
+            "type": "string"
+          },
+          "spatial_signature": {
+            "type": "string",
+            "enum": ["edge-ring", "center-cluster", "scratch", "donut", "random"]
+          },
+          "probability": {
+            "type": ["number", "null"],
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "risk_score": {
+            "type": ["number", "null"],
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "confidence_basis": {
+            "type": "string",
+            "enum": ["logistic_regression_v1", "composite_heuristic_v1"]
+          },
+          "sample_size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "evidence": {
+            "type": "string"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "probability": { "type": "number" },
+              "risk_score": { "type": "null" }
+            },
+            "required": ["probability", "risk_score"]
+          },
+          {
+            "properties": {
+              "probability": { "type": "null" },
+              "risk_score": { "type": "number" }
+            },
+            "required": ["probability", "risk_score"]
+          }
+        ]
+      }
+    },
+    "at_risk_upcoming_batches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["lot_id", "matched_signature"],
+        "properties": {
+          "lot_id": {
+            "type": "string"
+          },
+          "probability": {
+            "type": ["number", "null"],
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "risk_score": {
+            "type": ["number", "null"],
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "matched_signature": {
+            "type": "string",
+            "enum": ["edge-ring", "center-cluster", "scratch", "donut", "random"]
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "probability": { "type": "number" },
+              "risk_score": { "type": "null" }
+            },
+            "required": ["probability", "risk_score"]
+          },
+          {
+            "properties": {
+              "probability": { "type": "null" },
+              "risk_score": { "type": "number" }
+            },
+            "required": ["probability", "risk_score"]
+          }
+        ]
+      }
+    }
+  }
+}
