@@ -25,6 +25,10 @@ from .config import (
     LLM_MAX_TOKENS,
     GROQ_API_KEY,
     GROQ_MODEL,
+    WATSONX_API_KEY,
+    WATSONX_PROJECT_ID,
+    WATSONX_URL,
+    WATSONX_MODEL,
 )
 
 
@@ -145,6 +149,19 @@ def _dispatch_chat(messages: list, client: Any) -> str:
             )
             return response.text.strip()
 
+        elif provider == "watsonx":
+            # Format messages for watsonx Granite instruction format
+            formatted_prompt = ""
+            for msg in messages:
+                formatted_prompt += f"\n[{msg['role'].upper()}]:\n{msg['content']}\n"
+            formatted_prompt += "\n[ASSISTANT]:\n"
+            if hasattr(client, "generate_text"):
+                return client.generate_text(prompt=formatted_prompt).strip()
+            elif hasattr(client, "generate"):
+                res = client.generate(prompt=formatted_prompt)
+                return res.get("results", [{}])[0].get("generated_text", "").strip()
+            return str(client(formatted_prompt)).strip()
+
         elif provider in ("groq", "openai"):
             response = client.chat.completions.create(
                 model=LLM_MODEL,
@@ -176,6 +193,27 @@ def _dispatch_chat(messages: list, client: Any) -> str:
             raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
 
     except Exception as exc:
+        # Fallover 1: Attempt watsonx if configured and was not primary
+        if provider != "watsonx" and WATSONX_API_KEY and WATSONX_PROJECT_ID:
+            try:
+                from ibm_watsonx_ai import Credentials
+                from ibm_watsonx_ai.foundation_models import ModelInference
+                cred = Credentials(url=WATSONX_URL, api_key=WATSONX_API_KEY)
+                wx_model = ModelInference(
+                    model_id=WATSONX_MODEL,
+                    credentials=cred,
+                    project_id=WATSONX_PROJECT_ID,
+                    params={"temperature": LLM_TEMPERATURE, "max_new_tokens": LLM_MAX_TOKENS}
+                )
+                formatted_prompt = ""
+                for msg in messages:
+                    formatted_prompt += f"\n[{msg['role'].upper()}]:\n{msg['content']}\n"
+                formatted_prompt += "\n[ASSISTANT]:\n"
+                return wx_model.generate_text(prompt=formatted_prompt).strip()
+            except Exception:
+                pass
+
+        # Fallover 2: Attempt Groq if configured
         if provider != "groq" and GROQ_API_KEY:
             try:
                 from groq import Groq
@@ -196,7 +234,7 @@ def _dispatch_chat(messages: list, client: Any) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
-def create_bob_session(findings: dict, lot_overview: dict = None) -> list:
+def create_bob_session(findings: dict = None, lot_overview: dict = None) -> list:
     """
     Initialize a new conversation session with Bob.
 
@@ -204,22 +242,24 @@ def create_bob_session(findings: dict, lot_overview: dict = None) -> list:
     and returns the initial messages list for use with ask_bob().
 
     Args:
-        findings:     The root_cause_findings dict for the lot.
+        findings:     Optional root_cause_findings dict for the lot.
         lot_overview: Optional additional lot metadata (yield %, dates, etc.).
 
     Returns:
         messages list (OpenAI-style) with one system role message containing
         the Bob persona + operational rules + lot context.
     """
-    findings_context = _serialize_findings_context(findings, lot_overview)
-
-    system_content = (
-        SYSTEM_PROMPT_BOB
-        + "\n\n"
-        + "You have been provided the following lot analysis findings. "
-        + "Answer all questions strictly based on this data — do not invent metrics.\n\n"
-        + findings_context
-    )
+    if findings:
+        findings_context = _serialize_findings_context(findings, lot_overview)
+        system_content = (
+            SYSTEM_PROMPT_BOB
+            + "\n\n"
+            + "You have been provided the following lot analysis findings. "
+            + "Answer all questions strictly based on this data — do not invent metrics.\n\n"
+            + findings_context
+        )
+    else:
+        system_content = SYSTEM_PROMPT_BOB
 
     return [{"role": "system", "content": system_content}]
 
@@ -251,20 +291,25 @@ def ask_bob(messages: list, user_question: str, client: Any = None) -> tuple[str
     return answer, updated_messages
 
 
-def ask_bob_single(user_question: str, findings: dict, client: Any = None) -> str:
+def ask_bob_single(user_question: str, findings: dict = None, client: Any = None) -> str:
     """
     One-shot convenience wrapper — creates a fresh session and asks one question.
 
-    Ideal for backend API endpoints (/chat) where each call is stateless.
+    Supports calling as ask_bob_single(user_question, findings) or
+    ask_bob_single(findings, user_question) for maximum ergonomics.
 
     Args:
-        user_question: The engineer's question.
-        findings:      The root_cause_findings dict for the lot.
+        user_question: The engineer's question (or findings dict if swapped).
+        findings:      The root_cause_findings dict for the lot (or question if swapped).
         client:        Optional pre-built LLM client.
 
     Returns:
         Bob's answer as a string.
     """
+    # Allow arguments to be passed in either order
+    if isinstance(user_question, dict) and isinstance(findings, str):
+        user_question, findings = findings, user_question
+
     if client is None:
         client = get_llm_client()
 

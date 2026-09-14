@@ -22,11 +22,21 @@ if LLM_PROVIDER == "groq" and ("gemini" in LLM_MODEL or not LLM_MODEL):
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
 
-# API Keys
+# API Keys and Provider Endpoints
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# IBM watsonx.ai Configuration
+WATSONX_API_KEY = os.getenv("WATSONX_API_KEY") or os.getenv("IBM_CLOUD_API_KEY")
+WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID")
+WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+WATSONX_MODEL = os.getenv("WATSONX_MODEL", "ibm/granite-3-8b-instruct")
+
+# If provider is watsonx and model still has default non-watsonx name, use watsonx model
+if LLM_PROVIDER == "watsonx" and ("gemini" in LLM_MODEL or not LLM_MODEL):
+    LLM_MODEL = WATSONX_MODEL
 
 # --- Mandatory System Prompt for "Ask Bob" ---
 SYSTEM_PROMPT_BOB = """You are "Bob", an expert Semiconductor Fab Yield & Defect Analysis Assistant for advanced node manufacturing (3nm/5nm).
@@ -90,5 +100,22 @@ def get_llm_client() -> Any:
         from groq import Groq
         return Groq(api_key=GROQ_API_KEY)
 
+    elif provider == "watsonx":
+        if not WATSONX_API_KEY or not WATSONX_PROJECT_ID:
+            raise ValueError("WATSONX_API_KEY and WATSONX_PROJECT_ID must be set in .env for watsonx provider")
+        from ibm_watsonx_ai import Credentials
+        from ibm_watsonx_ai.foundation_models import ModelInference
+        credentials = Credentials(url=WATSONX_URL, api_key=WATSONX_API_KEY)
+        return ModelInference(
+            model_id=WATSONX_MODEL,
+            credentials=credentials,
+            project_id=WATSONX_PROJECT_ID,
+            params={
+                "decoding_method": "sample",
+                "temperature": LLM_TEMPERATURE,
+                "max_new_tokens": LLM_MAX_TOKENS,
+            }
+        )
+
     else:
-        raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'. Choose from: gemini, groq, openai, anthropic")
+        raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'. Choose from: watsonx, gemini, groq, openai, anthropic")

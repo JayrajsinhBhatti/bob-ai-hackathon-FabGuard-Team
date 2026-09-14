@@ -1,0 +1,72 @@
+[
+  {
+    "lot_id": "LOT-2001",
+    "product_id": "PROD-3NM-SOC",
+    "start_time": "2026-03-01T06:15:00",
+    "fab_line": "LINE-01-FAB12",
+    "final_yield_pct": 96.4,
+    "status": "completed",
+    "defect_count": 520,
+    "primary_signature": "random"
+  },
+  {
+    "lot_id": "LOT-2002",
+    "product_id": "PROD-5NM-GPU",
+    "start_time": "2026-03-01T10:30:00",
+    "fab_line": "LINE-01-FAB12",
+    "final_yield_pct": 95.8,
+    "status": "completed",
+    "defect_count": 485,
+    "primary_signature": "random"
+  },
+  {
+    "lot_id": "LOT-2201",
+    "product_id": "PROD-3NM-AI-ACCEL",
+    "start_time": "2026-03-02T08:00:00",
+    "fab_line": "LINE-02-FAB12",
+    "final_yield_pct": 76.2,
+    "status": "completed",
+    "defect_count": 2840,
+    "primary_signature": "edge-ring"
+  },
+  {
+    "lot_id": "LOT-2220",
+    "product_id": "PROD-3NM-SOC",
+    "start_time": "2026-03-03T14:45:00",
+    "fab_line": "LINE-01-FAB12",
+    "final_yield_pct": 81.5,
+    "status": "completed",
+    "defect_count": 2410,
+    "primary_signature": "center-cluster"
+  },
+  {
+    "lot_id": "LOT-2240",
+    "product_id": "PROD-5NM-GPU",
+    "start_time": "2026-03-04T18:20:00",
+    "fab_line": "LINE-02-FAB12",
+    "final_yield_pct": 73.1,
+    "status": "completed",
+    "defect_count": 3150,
+    "primary_signature": "scratch"
+  },
+  {
+    "lot_id": "LOT-2301",
+    "product_id": "PROD-3NM-SOC",
+    "start_time": "2026-03-05T09:00:00",
+    "fab_line": "LINE-01-FAB12",
+    "final_yield_pct": null,
+    "status": "at_risk",
+    "defect_count": 1820,
+    "primary_signature": "edge-ring"
+  },
+  {
+    "lot_id": "LOT-2302",
+    "product_id": "PROD-5NM-MODEM",
+    "start_time": "2026-03-05T11:30:00",
+    "fab_line": "LINE-01-FAB12",
+    "final_yield_pct": null,
+    "status": "in_progress",
+    "defect_count": 340,
+    "primary_signature": "random"
+  }
+]
