@@ -10,8 +10,8 @@ FabGuard is an intelligent semiconductor fab operations copilot that connects an
 |---|---|
 | **Team Name** | FabGuard Team |
 | **Track** | AI |
-| **Team Lead** | Jayrajsinh Bhatti — jayrajsinhbhatti9687@gmail.com |
-| **Members** | Jayrajsinh Bhatti, Yash Gohel |
+| **Team Lead** | Jayrajsinh Bhatti — 24ce014@charusat.edu.in |
+| **Members** | Jayrajsinh Bhatti, Yash Gohel, Meet Ghori, Kavy Chauhan |
 
 ---
 
@@ -84,8 +84,8 @@ FabGuard bridges raw fab telemetry and fast engineering resolution by pairing au
 
 ### 1. Clone and Install Dependencies
 ```bash
-git clone https://github.com/Yashgohel018/BOBathon-collab.git
-cd BOBathon-collab
+git clone https://github.com/JayrajsinhBhatti/bob-ai-hackathon-FabGuard-Team.git
+cd bob-ai-hackathon-FabGuard-Team
 
 # Install Python requirements
 pip install -r src/requirements.txt
@@ -133,7 +133,191 @@ pytest
 
 ## 🏆 What We're Most Proud Of
 
-Making IBM Bob an active, load-bearing participant via the Model Context Protocol (MCP). Rather than just a passive conversational agent, IBM Bob directly invokes our analytics tools over stdio to query fab sensor databases, classify spatial defect patterns, evaluate chamber drift, and formulate statistically rigorous explanations with strict Design of Experiments (DOE) caveats.
+Our system goes beyond being a conversational semiconductor analytics assistant. **IBM Bob acts as an agentic engineering copilot**, combining MCP-powered analytics, statistical experimentation, counterfactual simulation, evidence verification, and domain-specific RAG to turn raw fab data into **actionable, statistically grounded decisions**.
+
+### 1. 🧪 Automated Statistical DOE Generator
+
+When Bob identifies a candidate root cause, engineers can ask:
+
+> `@bob design a DOE for ETCH-07`
+
+Bob automatically generates a statistically structured **$2^k$ factorial Design of Experiments (DOE)**, including:
+
+* **Factors & Levels** — nominal, low, and high operating conditions.
+* **Randomized Run Sheet** — wafer IDs, recipe offsets, test order, and chamber stabilization requirements.
+* **Hypothesis & Success Criteria** — explicitly defining $H_0$ and $H_1$ before experimentation.
+* **Engineering Constraints** — preserves DOE assumptions and clearly distinguishes correlation from experimentally validated causation.
+
+**Example:**
+
+> **Factor:** Chamber Pressure
+> **Nominal:** $12.0$ mTorr
+> **Low:** $10.8$ mTorr ($-10%$)
+> **High:** $13.2$ mTorr ($+10%$)
+> **Success Criterion:** Defect density reduction $\geq 40%$
+
+This transforms Bob from a **diagnostic assistant into an experiment-design assistant**.
+
+---
+
+### 2. 💰 Counterfactual Yield & Financial Recovery Simulator
+
+Bob can estimate what would happen if a suspected process parameter were returned to its nominal operating point.
+
+The simulator:
+
+1. Takes the current out-of-spec parameter.
+2. Uses the trained logistic-regression model to estimate the current probability of yield loss.
+3. Counterfactually resets the parameter to its nominal value $\mu$ while holding other variables constant.
+4. Calculates the expected yield improvement:
+
+$$
+\Delta \text{Yield}
+=
+P(\text{yield loss}\mid\text{current})
+-
+P(\text{yield loss}\mid\text{nominal})
+$$
+
+5. Converts the predicted recovery into an estimated financial impact using lot size, die count, and die value.
+
+**Example output:**
+
+> **Centering ETCH-07 pressure could recover an estimated +4.8% yield, representing approximately $27,000 in potential recovery for LOT-2235.**
+
+This connects **statistical diagnosis → predicted yield → business impact** in a single workflow.
+
+---
+
+### 3. 🔬 Automated Cross-Lot Commonality & Exclusion Analysis
+
+Instead of analyzing an excursion in isolation, Bob automatically searches historical production data for **cross-lot commonality**.
+
+For a suspected tool or chamber, the system constructs a $2\times2$ contingency table:
+
+|                    | Processed on Tool $T$ | Not on Tool $T$ |
+| ------------------ | --------------------: | --------------: |
+| **Defective Lots** |                   $a$ |             $b$ |
+| **Nominal Lots**   |                   $c$ |             $d$ |
+
+It then calculates:
+
+* **Fisher's Exact Test**
+* **Odds Ratio**
+* **Hypergeometric probability**
+* Statistical significance across historical lots
+
+This allows Bob to answer questions such as:
+
+> **“Is this defect disproportionately associated with ETCH-07 across production history?”**
+
+Rather than relying only on the current lot, Bob uses **historical commonality evidence to strengthen or reject a suspected root cause**.
+
+---
+
+### 4. 🛡️ Dual-Pass Evidence Grounding Verifier
+
+LLM-generated engineering reports should never be trusted simply because they sound convincing.
+
+Our **Dual-Pass Evidence Grounding Verifier** acts as a guardrail between the LLM and the engineer.
+
+Before a briefing is delivered, the verifier extracts critical claims such as:
+
+* **Tool IDs** — `ETCH-07`, `CVD-03`, etc.
+* **Sigma deviations** — `-3.2σ`, `+2.7 sigma`
+* **Probabilities / risk scores** — `78%`, `Risk: 82%`
+* Other contract-defined numerical findings
+
+Each extracted claim is matched against the **underlying findings contract**.
+
+If Bob produces a metric that does not exist in the verified evidence:
+
+```text
+LLM Draft
+    ↓
+Claim Extraction
+    ↓
+Evidence Contract Matching
+    ↓
+ ┌───────────────┐
+ │ Supported?    │
+ └───────┬───────┘
+       Yes ↓ No
+   Deliver    Reject
+              ↓
+       Deterministic
+       Template / Regeneration
+```
+
+This creates a **fail-closed architecture** where unsupported numerical claims are blocked instead of being presented to engineers as facts.
+
+---
+
+### 5. 📚 RAG Equipment SOP & Historical Incident Retriever
+
+Bob doesn't stop at identifying **what went wrong**. It can retrieve the relevant **engineering procedure and historical evidence** needed to respond.
+
+A local fab knowledge base contains:
+
+* Equipment SOPs
+* Tool maintenance procedures
+* Chamber troubleshooting guides
+* Historical excursion post-mortems
+* Equipment-specific corrective actions
+
+When an anomaly such as:
+
+```text
+RF_POWER_DRIFT
+CHAMBER_PRESSURE_SPIKE
+```
+
+is detected, the retriever searches the knowledge base using **BM25 / lightweight TF-IDF / sentence embeddings** and retrieves the most relevant procedure.
+
+For example:
+
+> **SOP-ETCH-402 — Throttle Valve Inspection & RF Impedance Matching Recalibration**
+
+Bob can then ground its recommendation in the retrieved procedure instead of generating a generic troubleshooting response.
+
+This creates a complete loop:
+
+**Anomaly → Root Cause → Historical Evidence → SOP → Recommended Action**
+
+---
+
+### 🚀 Why These Features Matter
+
+Together, these capabilities make IBM Bob more than an LLM interface:
+
+```text
+                    ┌──────────────────────┐
+                    │      IBM Bob         │
+                    │  Agentic Engineering  │
+                    │       Copilot         │
+                    └──────────┬───────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        ↓                      ↓                      ↓
+  🔬 Diagnose              📊 Experiment          📚 Retrieve
+        │                      │                      │
+ Cross-Lot Analysis       DOE Generator          SOP / Incidents
+        │                      │                      │
+        └──────────────────────┼──────────────────────┘
+                               ↓
+                     💰 Counterfactual
+                     Yield & Financial
+                         Simulation
+                               ↓
+                       🛡️ Evidence
+                       Verification
+                               ↓
+                    Actionable Engineering
+                          Decision
+```
+
+The result is a system that can move from **“we detected an anomaly”** to **“here is the evidence, here is the experiment to validate it, here is the expected yield impact, and here is the documented procedure to act on it.”**
+
 
 ---
 

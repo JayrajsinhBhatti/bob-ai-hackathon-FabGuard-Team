@@ -13,6 +13,9 @@ Tools exposed:
     - get_root_cause_findings(lot_id)  -> Raw JSON findings dict (for Bob to reason over)
     - predict_batch_risk()             -> List of at-risk upcoming batches
     - ask_fab_copilot(query, lot_id?)  -> Conversational answer from the Bob Copilot
+    - run_commonality_analysis(lot_id) -> Fisher's Exact cross-lot tool exclusivity matrix
+    - simulate_yield_recovery(lot_id)  -> Counterfactual yield & financial recovery estimate
+    - generate_doe_matrix(lot_id)      -> Statistical DOE runcard for confirmatory experiment
 
 All stdout is reserved for MCP JSON-RPC messages.
 All logging/debug output goes to stderr to avoid protocol corruption.
@@ -250,6 +253,86 @@ def ask_fab_copilot(query: str, lot_id: str = None) -> str:
         return f"[Error] Copilot unavailable: {e}"
 
 
+def run_commonality_analysis(lot_id: str) -> str:
+    """
+    Run cross-lot commonality analysis for a lot using Fisher's Exact Test.
+
+    Statistically proves whether specific tools are uniquely common to
+    defective lots vs. nominal lots (p-value, odds ratio, relative risk).
+
+    Args:
+        lot_id: Wafer lot identifier.
+
+    Returns:
+        Human-readable commonality report with tool exclusivity rankings.
+    """
+    try:
+        from analytics.commonality import CommonalityAnalyzer
+        from analytics.pipeline import get_default_repository
+        repo = get_default_repository()
+        analyzer = CommonalityAnalyzer(repo)
+        result = analyzer.run_for_lot(lot_id)
+        return analyzer.format_as_text(result)
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        return f"[Error] Commonality analysis failed for {lot_id}: {e}"
+
+
+def simulate_yield_recovery(lot_id: str) -> str:
+    """
+    Simulate counterfactual yield recovery and financial impact for a lot.
+
+    Computes what yield percentage and dollar value would be recovered by
+    fixing each identified process excursion.
+
+    Args:
+        lot_id: Wafer lot identifier.
+
+    Returns:
+        Yield recovery simulation with per-lot financial estimates.
+    """
+    try:
+        from analytics.counterfactual import CounterfactualSimulator
+        from analytics.pipeline import analyze_lot as _al, get_default_repository
+        repo = get_default_repository()
+        findings = _al(lot_id, include_v3_fields=True)
+        sim = CounterfactualSimulator(repo)
+        result = sim.simulate_recovery_for_lot(lot_id, findings)
+        return sim.format_as_text(result)
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        return f"[Error] Yield recovery simulation failed for {lot_id}: {e}"
+
+
+def generate_doe_matrix(lot_id: str) -> str:
+    """
+    Generate a statistical DOE runcard for the top candidate root cause of a lot.
+
+    Creates a complete 2^k factorial experiment matrix with factor levels,
+    randomized run order, and confirmatory success criteria.
+
+    Args:
+        lot_id: Wafer lot identifier.
+
+    Returns:
+        Formatted DOE runcard with run sheet and hypothesis statement.
+    """
+    try:
+        from analytics.pipeline import analyze_lot as _al, get_default_repository
+        from copilot.doe_engine import DOEEngine
+        repo = get_default_repository()
+        findings = _al(lot_id, include_v3_fields=True)
+        causes = findings.get("candidate_causes", [])
+        if not causes:
+            return f"[DOE Generator] No candidate causes found for {lot_id}. Cannot design experiment."
+        engine = DOEEngine(repo)
+        runcard = engine.generate_for_cause(lot_id, causes[0])
+        return engine.format_as_text(runcard)
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        return f"[Error] DOE generation failed for {lot_id}: {e}"
+
+
 # ---------------------------------------------------------------------------
 # MCP Server Registration (stdio JSON-RPC via mcp SDK)
 # ---------------------------------------------------------------------------
@@ -292,6 +375,21 @@ def run_mcp_server():
     def mcp_ask_fab_copilot(query: str, lot_id: str = "") -> str:
         """Ask the Fab Copilot a natural-language question, optionally grounded in a lot's findings."""
         return ask_fab_copilot(query, lot_id=lot_id if lot_id else None)
+
+    @mcp.tool()
+    def mcp_run_commonality_analysis(lot_id: str) -> str:
+        """Run cross-lot Fisher's Exact Test to prove statistical tool exclusivity for a lot."""
+        return run_commonality_analysis(lot_id)
+
+    @mcp.tool()
+    def mcp_simulate_yield_recovery(lot_id: str) -> str:
+        """Simulate counterfactual yield recovery and financial impact for a lot's excursions."""
+        return simulate_yield_recovery(lot_id)
+
+    @mcp.tool()
+    def mcp_generate_doe_matrix(lot_id: str) -> str:
+        """Generate a statistical 2^k factorial DOE runcard for confirming the top root cause."""
+        return generate_doe_matrix(lot_id)
 
     print("[mcp_server] IBM Bob Fab Analytics MCP server starting on stdio...", file=sys.stderr)
     mcp.run(transport="stdio")

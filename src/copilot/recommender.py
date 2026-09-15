@@ -21,10 +21,6 @@ from .config import (
     DOE_CAVEAT_STRING,
     GROQ_API_KEY,
     GROQ_MODEL,
-    WATSONX_API_KEY,
-    WATSONX_PROJECT_ID,
-    WATSONX_URL,
-    WATSONX_MODEL,
 )
 
 
@@ -221,14 +217,6 @@ def _call_llm_for_recommendation(
             )
             return response.choices[0].message.content.strip()
 
-        elif provider == "watsonx":
-            if hasattr(client, "generate_text"):
-                return client.generate_text(prompt=prompt).strip()
-            elif hasattr(client, "generate"):
-                res = client.generate(prompt=prompt)
-                return res.get("results", [{}])[0].get("generated_text", "").strip()
-            return str(client(prompt)).strip()
-
         elif provider == "openai":
             response = client.chat.completions.create(
                 model=LLM_MODEL,
@@ -250,23 +238,7 @@ def _call_llm_for_recommendation(
             raise ValueError(f"Unsupported LLM_PROVIDER: '{provider}'")
 
     except Exception as exc:
-        # Fallover 1: Attempt watsonx if credentials configured and was not primary
-        if provider != "watsonx" and WATSONX_API_KEY and WATSONX_PROJECT_ID:
-            try:
-                from ibm_watsonx_ai import Credentials
-                from ibm_watsonx_ai.foundation_models import ModelInference
-                cred = Credentials(url=WATSONX_URL, api_key=WATSONX_API_KEY)
-                wx_model = ModelInference(
-                    model_id=WATSONX_MODEL,
-                    credentials=cred,
-                    project_id=WATSONX_PROJECT_ID,
-                    params={"temperature": LLM_TEMPERATURE, "max_new_tokens": LLM_MAX_TOKENS}
-                )
-                return wx_model.generate_text(prompt=prompt).strip()
-            except Exception:
-                pass
-
-        # Fallover 2: Attempt Groq if configured
+        # If primary is Gemini and failed (e.g. 429 quota exhausted), attempt Groq failover
         if provider != "groq" and GROQ_API_KEY:
             try:
                 from groq import Groq

@@ -1,15 +1,20 @@
 """
-tests/test_submission_template.py
+src/tests/test_submission_template.py
 Validates that the repository satisfies all structural and metadata
 rules defined in drijesh-ppatel/bob-ai-hackathon-submission-template
 and tested by .github/workflows/validate.yml.
+
+NOTE: This file lives at src/tests/, so REPO_ROOT resolves 3 levels up
+(src/tests/ -> src/ -> repo root).
 """
 
 import os
 import yaml
 import pytest
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# File is at: <repo_root>/src/tests/test_submission_template.py
+# parents[0] = src/tests/  parents[1] = src/  parents[2] = repo root
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def test_required_files_exist():

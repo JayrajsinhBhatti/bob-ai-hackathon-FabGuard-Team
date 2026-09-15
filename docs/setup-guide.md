@@ -127,7 +127,7 @@ To run all automated verification tests:
 pytest
 
 # Run Copilot live end-to-end scenarios specifically
-pytest copilot/tests/test_live_scenarios.py -v
+pytest src/copilot/tests/test_live_scenarios.py -v
 ```
 
 All 6 live scenarios will execute:

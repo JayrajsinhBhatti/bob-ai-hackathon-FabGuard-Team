@@ -23,16 +23,9 @@ if hasattr(sys.stderr, "reconfigure"):
 # Ensure repository root on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import pytest
 from copilot.pipeline import full_copilot_analysis, full_copilot_analysis_from_fixture, copilot_chat
 from copilot.config import get_llm_client, LLM_PROVIDER, LLM_MODEL, GROQ_MODEL, GROQ_API_KEY
 from copilot.agent import ask_bob_single, create_bob_session, ask_bob
-
-
-@pytest.fixture
-def findings() -> dict:
-    res = full_copilot_analysis("LOT-2231")
-    return res["root_cause_findings"]
 
 
 def test_scenario_1_etch():
