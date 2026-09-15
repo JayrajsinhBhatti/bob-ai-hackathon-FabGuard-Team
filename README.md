@@ -126,6 +126,7 @@ pytest
 | Artifact | Link / Path |
 |---|---|
 | 📹 Demo Video | [▶️ Watch on YouTube](https://youtu.be/h4QeRZyVpqE) |
+| Live kink: https://fabguard-team.vercel.app/|
 | 📊 Screenshots | [See demo/screenshots/](demo/screenshots/) |
 
 ---
