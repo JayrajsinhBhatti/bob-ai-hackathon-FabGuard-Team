@@ -125,8 +125,8 @@ pytest
 
 | Artifact | Link / Path |
 |---|---|
-| 📹 Demo Video | [See demo/demo-video-link.txt](demo/demo-video-link.txt) |
-| 🌐 Live Demo Status | [See demo/live-demo-url.txt](demo/live-demo-url.txt) (NOT DEPLOYED) |
+| 📹 Demo Video | [▶️ Watch on YouTube](https://youtu.be/wzFjRJUOYY0) |
+| 🌐 Live Demo | [🚀 fabguard-team.vercel.app](https://fabguard-team.vercel.app) |
 | 📊 Screenshots | [See demo/screenshots/](demo/screenshots/) |
 
 ---
