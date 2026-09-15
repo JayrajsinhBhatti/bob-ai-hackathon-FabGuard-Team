@@ -231,7 +231,7 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
         ...prev,
         {
           sender: 'bob',
-          text: `⚠️ **Communication timeout** — backend unreachable. Please ensure the backend server is running on port 8005.`,
+          text: `⚠️ **Communication timeout** — backend unreachable. The server may be starting up (Render free tier sleeps). Please wait 30s and try again.`,
           citations: [],
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
