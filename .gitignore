@@ -57,10 +57,14 @@ dist-ssr/
 .DS_Store
 Thumbs.db
 
-# Database journals and locks
+# Database files
+*.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Generated data exports
+data/exports/
 
 # Testing & Coverage
 .coverage

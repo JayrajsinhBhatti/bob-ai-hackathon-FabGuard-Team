@@ -1,0 +1,139 @@
+[
+  {
+    "sop_id": "SOP-ETCH-401",
+    "title": "ETCH Step: Chamber Pressure Excursion Investigation",
+    "process_step": "etch",
+    "parameter": "chamber_pressure",
+    "spatial_signatures": ["edge-ring", "donut"],
+    "trigger": "chamber_pressure deviates > 2 sigma from nominal or Cpk < 1.33",
+    "procedures": [
+      "1. Issue soft PAUSE on ETCH tool via FDC interlock. Do not pull wafers.",
+      "2. Check throttle valve position vs. setpoint using APC (Advanced Process Control) log.",
+      "3. Inspect turbomolecular pump RPM log for stall events (< 89,000 RPM).",
+      "4. Perform manual pressure gauge cross-check with capacitance manometer.",
+      "5. If throttle valve lag > 50ms: schedule valve O-ring and seat inspection (PM-ETCH-THL-04).",
+      "6. If pump RPM normal: check foreline pressure for downstream restriction.",
+      "7. Run 2-wafer qualification lot at nominal pressure recipe before production restart.",
+      "8. Document in FDC event log under category ETCH-PRESSURE-DRIFT."
+    ],
+    "root_cause_precedents": [
+      "2024-Q1 ETCH-07 incident: throttle valve actuator backlash caused ±3.8 mTorr oscillation, producing edge-ring defects on 14 consecutive lots. Root cause: worn actuator gear. Fix: actuator replacement + recipe pressure ramp rate reduction to 0.5 mTorr/s.",
+      "2023-Q3 ETCH-12 incident: foreline N2 purge valve partial blockage caused 8 mTorr systematic offset. Spatial signature: uniform donut ring at wafer perimeter. Fix: foreline valve clean + 4-hour bake."
+    ],
+    "keywords": ["chamber pressure", "etch", "throttle valve", "turbopump", "pressure drift", "edge ring", "donut defect", "APC", "foreline"]
+  },
+  {
+    "sop_id": "SOP-ETCH-402",
+    "title": "ETCH Step: RF Power / Impedance Matching Excursion",
+    "process_step": "etch",
+    "parameter": "rf_power",
+    "spatial_signatures": ["center-cluster", "edge-ring"],
+    "trigger": "rf_power deviation > 2 sigma or etch rate drift > 5% from target",
+    "procedures": [
+      "1. Check RF generator reflected power ratio (target < 2% reflection coefficient).",
+      "2. Inspect RF match network capacitor position logs (C1, C2 setpoint vs. actual).",
+      "3. Run automatic RF match tune at 5-minute intervals — confirm convergence.",
+      "4. If match fails to converge: check RF cable connections at generator and chamber feedthrough.",
+      "5. Inspect chamber feedthrough for arcing marks (visual inspection requires tool venting).",
+      "6. Measure plasma uniformity using OES (Optical Emission Spectroscopy) if available.",
+      "7. Replace RF match network capacitors if tune offset > 15% from baseline (PM-ETCH-RF-07).",
+      "8. Post-repair: run 4-point wafer resistance uniformity check. Target: sigma < 2%."
+    ],
+    "root_cause_precedents": [
+      "2024-Q2 ETCH-07 RF incident: degraded RF match capacitor C2 caused 12% power loss at center, producing center-cluster oxide damage on 9 lots. Fix: C2 capacitor replacement, confirmed via 5-point etch rate map.",
+      "2023-Q4 ETCH-03 incident: RF cable sheath crack causing intermittent arcing. Signature: random defects with periodic intensity. Fix: cable replacement and regrounding."
+    ],
+    "keywords": ["rf power", "etch rate", "RF match", "impedance", "plasma", "OES", "center cluster", "arcing", "capacitor"]
+  },
+  {
+    "sop_id": "SOP-LITHO-301",
+    "title": "LITHO Step: Focus Offset / CD Uniformity Excursion",
+    "process_step": "litho",
+    "parameter": "focus_offset_nm",
+    "spatial_signatures": ["center-cluster", "edge-ring", "donut"],
+    "trigger": "focus_offset > 3nm or CD uniformity sigma > 1.5nm",
+    "procedures": [
+      "1. Run FEM (Focus Exposure Matrix) qualification wafer immediately.",
+      "2. Check lens barrel temperature log for thermal excursion > ±0.05°C.",
+      "3. Inspect reticle flatness via reticle inspection tool (AIMS or PROVE).",
+      "4. Verify chuck vacuum level and chuck flatness map (last calibration date).",
+      "5. Check stage leveling sensor (z-sensor) calibration — recalibrate if drift > 2nm.",
+      "6. If focus systematic across wafer (edge-ring): check wafer chuck leveling and vacuum seal.",
+      "7. If focus systematic at center: check lens thermal equilibration (30 min warm-up required after tool restart).",
+      "8. Perform 5-site CD-SEM measurement across suspect lot. Report mean+3sigma."
+    ],
+    "root_cause_precedents": [
+      "2024-Q1 LITHO-02 incident: reticle contamination (particle on pellicle) caused asymmetric focus signature — half-moon shadow pattern on wafer. Root cause confirmed by FEM + SEM cross-section. Fix: pellicle replacement.",
+      "2023-Q2 LITHO-05 incident: chuck vacuum leak caused wafer warp, producing donut-shaped focus deviation ring at 80% radius. Fix: chuck o-ring replacement and chuck flatness recalibration."
+    ],
+    "keywords": ["focus", "litho", "photolithography", "cd uniformity", "exposure", "FEM", "reticle", "lens", "chuck", "wafer flatness", "center cluster", "donut"]
+  },
+  {
+    "sop_id": "SOP-CVD-201",
+    "title": "CVD Step: Gas Flow Deviation & Film Uniformity Excursion",
+    "process_step": "cvd",
+    "parameter": "gas_flow_sccm",
+    "spatial_signatures": ["edge-ring", "donut", "random"],
+    "trigger": "gas_flow deviation > 3% of setpoint or film thickness sigma > 2%",
+    "procedures": [
+      "1. Check MFC (Mass Flow Controller) actual vs. setpoint log for all precursor and carrier gases.",
+      "2. Run MFC auto-zero and span calibration procedure (requires N2 span gas, SOP-CVD-MFC-01).",
+      "3. Inspect showerhead for particle deposits or blocked holes (visual via borescope — tool vented).",
+      "4. Verify chamber wall temperature profile — cold spot (< target - 10°C) causes edge non-uniformity.",
+      "5. Check exhaust throttle valve position for back-pressure creep.",
+      "6. Run 2-wafer seasoning recipe before production re-start after any gas system work.",
+      "7. Measure film thickness at 49 points using ellipsometry. Target: within-wafer sigma < 1.5%."
+    ],
+    "root_cause_precedents": [
+      "2024-Q3 CVD-04 incident: TiN precursor MFC drift caused 7% flow increase, resulting in thick donut ring at wafer center (over-deposition from center showerhead zone). Fix: MFC replacement + showerhead cleaning.",
+      "2023-Q1 CVD-08 incident: showerhead holes 12-15 blocked by process by-product, producing random high-density particle defects in affected zones. Fix: showerhead wet clean (H2O2/HF) and reinstall."
+    ],
+    "keywords": ["gas flow", "MFC", "CVD", "film uniformity", "showerhead", "mass flow controller", "precursor", "deposition rate", "donut", "edge ring"]
+  },
+  {
+    "sop_id": "SOP-CMP-101",
+    "title": "CMP Step: Removal Rate Uniformity & Scratch Defect Investigation",
+    "process_step": "cmp",
+    "parameter": "removal_rate_nm_min",
+    "spatial_signatures": ["scratch", "edge-ring", "random"],
+    "trigger": "removal_rate deviation > 5% or scratch defect count > 10 per wafer",
+    "procedures": [
+      "1. Inspect polishing pad surface for glazing (use profilometer — target Ra > 5 μm).",
+      "2. Check slurry delivery system: flow rate, temperature (target 23°C ± 1°C), and pH (target 10.5 ± 0.2).",
+      "3. Inspect slurry dispense nozzle for clogging or crystallized slurry deposits.",
+      "4. Check conditioner disk wear rate and diamond grit condition (replace if wear > 50%).",
+      "5. Review wafer carrier pressure profile — edge exclusion zone pressure most critical.",
+      "6. If scratch pattern is radial: check for abrasive agglomeration in slurry (particle size > 500nm).",
+      "7. Run 2-wafer pad break-in lot before production restart after any pad change.",
+      "8. Post-measurement: 49-point film thickness map + defect review at 5 sites."
+    ],
+    "root_cause_precedents": [
+      "2024-Q2 CMP-02 incident: slurry abrasive agglomeration (colloidal silica size bimodal distribution) caused linear scratch defects on 18 lots. Fix: slurry line filter replacement (0.2 μm) + slurry reformulation.",
+      "2023-Q3 CMP-06 incident: pad glazing (low Ra = 2.1 μm) caused 30% removal rate drop and edge-ring under-polish. Fix: forced pad conditioning cycle + pad replacement at 2000-wafer count."
+    ],
+    "keywords": ["CMP", "chemical mechanical planarization", "removal rate", "scratch", "pad", "slurry", "conditioner", "polishing", "glazing", "abrasive"]
+  },
+  {
+    "sop_id": "SOP-IMPLANT-501",
+    "title": "ION IMPLANT Step: Dose Uniformity & Beam Current Excursion",
+    "process_step": "implant",
+    "parameter": "dose_uniformity_pct",
+    "spatial_signatures": ["edge-ring", "center-cluster", "random"],
+    "trigger": "dose uniformity > 1.5% or beam current deviation > 2%",
+    "procedures": [
+      "1. Check beam current monitor log — compare actual vs. Faraday cup reference.",
+      "2. Verify end station scan uniformity: inspect scan motor encoder feedback for position error.",
+      "3. Inspect beam-defining aperture for charging or carbon build-up.",
+      "4. Check source arc current stability — should be < 0.5A variation over 30-minute window.",
+      "5. Verify neutralizer filament condition (replace if emission current < target by > 20%).",
+      "6. Run beam uniformity validation wafer (bare silicon, Faraday mapping). Target: sigma < 1%.",
+      "7. If edge-ring pattern: check wafer scan overshoot at edge turnaround positions.",
+      "8. Document in batch traveler and quarantine lot for 4-point probe measurement."
+    ],
+    "root_cause_precedents": [
+      "2024-Q1 IMPLANT-03 incident: neutralizer filament degradation caused beam charging, producing edge-ring pattern with 8% dose non-uniformity. Fix: neutralizer filament replacement + 2-hour beam conditioning.",
+      "2023-Q4 IMPLANT-07 incident: scan motor encoder noise caused systematic over-scan at left wafer edge, resulting in left-edge dose stripe. Fix: encoder cable replacement and scan table recalibration."
+    ],
+    "keywords": ["implant", "ion implant", "dose", "beam current", "uniformity", "Faraday", "scan", "neutralizer", "end station", "source"]
+  }
+]

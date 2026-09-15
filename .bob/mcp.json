@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "fabguard-fab-analytics": {
+      "command": "python",
+      "args": ["e:\\IBM X BOB\\BOBathon-collab\\src\\mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "e:\\IBM X BOB\\BOBathon-collab\\src;e:\\IBM X BOB\\BOBathon-collab",
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "alwaysAllow": [
+        "mcp_analyze_lot",
+        "mcp_get_root_cause_findings",
+        "mcp_predict_batch_risk",
+        "mcp_ask_fab_copilot",
+        "mcp_run_commonality_analysis",
+        "mcp_simulate_yield_recovery",
+        "mcp_generate_doe_matrix"
+      ],
+      "disabled": false
+    }
+  }
+}
