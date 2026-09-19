@@ -18,5 +18,5 @@ google-genai>=1.0.0
 groq>=0.11.0
 ibm-watsonx-ai>=1.0.0
 
-# IBM Bob Model Context Protocol (MCP) Integration
-mcp>=1.0.0
+# IBM Bob Model Context Protocol (MCP) Integration (pinned to v1 for FastMCP API)
+mcp>=1.0.0,<2.0.0

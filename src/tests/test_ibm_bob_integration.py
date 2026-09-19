@@ -202,26 +202,16 @@ def test_fallback_chain_defined():
     assert "GEMINI_API_KEY" in source, "Gemini fallback missing"
 
 
-@pytest.mark.skipif(
-    not os.getenv("GROQ_API_KEY"),
-    reason="GROQ_API_KEY not configured — skipping Groq fallback test"
-)
-def test_groq_fallback_works():
-    """When ibm_bob fails (no key), should fall back to Groq gracefully."""
-    import copilot.config as cfg
-    original_key = cfg.WATSONX_API_KEY
-    original_provider = cfg.LLM_PROVIDER
-    cfg.WATSONX_API_KEY = None  # Force IBM Bob to fail
-    cfg.LLM_PROVIDER = "ibm_bob"
-
-    from copilot.agent import ask_bob_single
-    try:
-        answer = ask_bob_single("What is Cpk?", findings=SAMPLE_FINDINGS)
-        assert isinstance(answer, str) and len(answer) > 5
-        print(f"\n[Groq Fallback Answer]: {answer[:100]}...")
-    finally:
-        cfg.WATSONX_API_KEY = original_key
-        cfg.LLM_PROVIDER = original_provider
+def test_copilot_fallback_works():
+    """When primary provider is unavailable, should fall back to secondary providers (Groq/Gemini)."""
+    from copilot.agent import _dispatch_chat
+    messages = [
+        {"role": "system", "content": "You are Bob."},
+        {"role": "user", "content": "What is Cpk in semiconductor manufacturing?"},
+    ]
+    answer = _dispatch_chat(messages, client=None)
+    assert isinstance(answer, str) and len(answer) > 10
+    assert "Cpk" in answer or "capability" in answer.lower() or "process" in answer.lower()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

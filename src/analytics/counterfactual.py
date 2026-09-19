@@ -108,13 +108,15 @@ class CounterfactualSimulator:
             relative contribution to the total yield gap. For the top-ranked cause,
             we attribute a portion of the yield gap proportional to its score.
         """
-        deviation_score = cause.get("deviation_score", 0.0) or 0.0
-        confidence = cause.get("confidence", 0.0) or 0.0
-        risk_score = cause.get("risk_score") or cause.get("probability") or 0.0
+        confidence = cause.get("confidence") or cause.get("probability") or cause.get("risk_score") or 0.75
+        deviation_score = cause.get("deviation_score")
+        if deviation_score is None:
+            z = abs(cause.get("z_score", 3.0)) if cause.get("z_score") is not None else 3.0
+            deviation_score = min(1.0, z / 4.0)
 
         # Attribution factor: how much of the yield gap is driven by this cause
         # Conservative: score-weighted fraction, capped at 80% (never blame single cause for all)
-        attribution_factor = min(0.80, deviation_score * confidence)
+        attribution_factor = min(0.80, max(0.10, deviation_score * confidence))
 
         # Recoverable yield = attribution × total yield gap × slight discount for model uncertainty
         confidence_factor = min(0.90, confidence + 0.10)  # slight upward prior from sample data

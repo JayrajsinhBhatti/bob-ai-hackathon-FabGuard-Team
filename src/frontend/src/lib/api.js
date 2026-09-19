@@ -35,4 +35,11 @@ export const api = {
         conversation_history: conversationHistory,
       }),
     }),
+  sendChatFeedback: (interactionId, feedback) =>
+    fetchAPI('/chat/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ interaction_id: interactionId, feedback }),
+    }),
+  getCopilotMetrics: () => fetchAPI('/chat/metrics'),
 };
+

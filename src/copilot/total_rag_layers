@@ -1,0 +1,19 @@
+1. Query Routing
+        ↓
+2. Query Rewriting
+        ↓
+3. Multi-Query
+        ↓
+4. Hybrid Search
+        ↓
+5. Reranking
+        ↓
+6. CRAG
+        ↓
+7. Self-RAG
+        ↓
+8. Adaptive / Agentic RAG
+        ↓
+9. Retrieval Evaluation
+        ↓
+10. Grounding Verification

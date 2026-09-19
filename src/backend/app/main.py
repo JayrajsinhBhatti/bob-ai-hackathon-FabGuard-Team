@@ -7,10 +7,12 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root to sys.path to enable importing copilot and analytics packages
+# Add project root and backend dir to sys.path to enable importing copilot, analytics, and app packages
+_backend_root = str(Path(__file__).resolve().parents[1])
 _project_root = str(Path(__file__).resolve().parents[2])
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+for _p in (_backend_root, _project_root):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

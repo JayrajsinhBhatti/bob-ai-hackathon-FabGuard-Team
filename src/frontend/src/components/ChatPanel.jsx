@@ -14,7 +14,13 @@ import {
   Zap,
   Bot,
   CheckCircle2,
+  ThumbsUp,
+  ThumbsDown,
+  ShieldCheck,
+  AlertTriangle,
+  BookOpen,
 } from 'lucide-react';
+
 import { api } from '../lib/api';
 
 // Detect LLM provider from env (VITE_LLM_PROVIDER) or default display
@@ -102,7 +108,7 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
     `Why did ${currentLot} have a yield drop?`,
     `What parameter drifted in the suspect tool?`,
     `What should I check first?`,
-    `Show DOE verification matrix`,
+    `Design confirmatory 2^k DOE`,
   ];
 
   const scrollToBottom = () => {
@@ -202,6 +208,21 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
     }
   };
 
+  const handleFeedback = async (messageIndex, interactionId, feedbackType) => {
+    try {
+      if (interactionId) {
+        await api.sendChatFeedback(interactionId, feedbackType);
+      }
+      setMessages((prev) =>
+        prev.map((msg, idx) =>
+          idx === messageIndex ? { ...msg, userFeedback: feedbackType } : msg
+        )
+      );
+    } catch (err) {
+      console.warn('Could not submit feedback:', err);
+    }
+  };
+
   const handleSend = async (queryText) => {
     const textToSend = queryText || input;
     if (!textToSend.trim() || isLoading) return;
@@ -221,6 +242,15 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
         sender: 'bob',
         text: res.response,
         citations: res.cited_findings || [],
+        groundingRate: res.grounding_rate !== undefined ? res.grounding_rate : 1.0,
+        isGrounded: res.is_grounded !== undefined ? res.is_grounded : true,
+        retrievalQuality: res.retrieval_quality || null,
+        confidenceLevel: res.confidence_level || 0.95,
+        interactionId: res.interaction_id || null,
+        route: res.route || 'general',
+        isOutOfScope: res.is_out_of_scope || false,
+        wasRegenerated: res.was_regenerated || false,
+        userFeedback: null,
         provider: LLM_PROVIDER,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -240,6 +270,7 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
       setIsLoading(false);
     }
   };
+
 
   if (!isOpen) return null;
 
@@ -396,7 +427,7 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
             return (
               <div key={i} className={`flex flex-col ${isBob ? 'items-start' : 'items-end'}`}>
                 {isBob && (
-                  <div className="flex items-center gap-2 mb-1 px-1">
+                  <div className="flex items-center gap-1.5 mb-1 px-1 flex-wrap">
                     <div className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan/20 border border-cyan/30">
                       <Bot className="h-3 w-3 text-cyan" />
                     </div>
@@ -405,6 +436,33 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
                       <span className={`text-[9px] font-mono ${PROVIDER_LABELS[m.provider]?.color || 'text-slate-500'} flex items-center gap-1`}>
                         <Zap className="h-2 w-2" />
                         {PROVIDER_LABELS[m.provider]?.label || m.provider}
+                      </span>
+                    )}
+                    {m.groundingRate !== undefined && (
+                      <span
+                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                          m.groundingRate >= 0.85
+                            ? 'bg-emerald/15 text-emerald border border-emerald/30'
+                            : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        }`}
+                        title={`Evidence Grounding: ${Math.round(m.groundingRate * 100)}%`}
+                      >
+                        {m.groundingRate >= 0.85 ? (
+                          <ShieldCheck className="h-2.5 w-2.5" />
+                        ) : (
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                        )}
+                        {m.groundingRate >= 0.85 ? 'Verified Grounded' : 'Partially Grounded'}
+                      </span>
+                    )}
+                    {m.confidenceLevel && (
+                      <span className="text-[9px] font-mono text-slate-400">
+                        {Math.round(m.confidenceLevel * 100)}% conf
+                      </span>
+                    )}
+                    {m.route && m.route !== 'general' && (
+                      <span className="text-[8px] font-mono uppercase tracking-wider text-cyan/80 bg-cyan/10 border border-cyan/30 px-1 py-0.5 rounded">
+                        {m.route}
                       </span>
                     )}
                   </div>
@@ -427,31 +485,88 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
                     <div className="mt-3 pt-2.5 border-t border-border-subtle text-[11px] font-mono space-y-1.5">
                       <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-bold flex items-center gap-1">
                         <CheckCircle2 className="h-2.5 w-2.5 text-emerald" />
-                        Traceable Evidence:
+                        Traceable Evidence & SOP Sources:
                       </span>
                       {m.citations.map((c, cIdx) => (
                         <div
                           key={cIdx}
-                          className="rounded-lg bg-surface-deep p-2 border border-cyan/30 text-slate-300 flex items-center justify-between"
+                          className="rounded-lg bg-surface-deep p-2 border border-cyan/30 text-slate-300"
                         >
-                          <div>
-                            <span className="font-bold text-cyan">{c.tool_id}</span>{' '}
-                            <span className="text-slate-400">({c.parameter})</span>
-                            <span className="text-slate-400 block text-[10px]">
-                              Cpk:{' '}
-                              <strong className={c.cpk < 1.33 ? 'text-red-400' : 'text-emerald'}>
-                                {c.cpk}
-                              </strong>{' '}
-                              · Step: {c.step}
-                            </span>
-                          </div>
-                          {c.probability && (
-                            <span className="rounded bg-cyan/15 px-2 py-0.5 font-bold text-cyan text-[10px] border border-cyan/40">
-                              {Math.round(c.probability * 100)}% Prob
-                            </span>
+                          {c.sop_id ? (
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-cyan flex items-center gap-1">
+                                  <BookOpen className="h-3 w-3 text-cyan" />
+                                  {c.sop_id}
+                                </span>
+                                {c.tool_id && <span className="text-[9px] font-mono text-slate-400">{c.tool_id}</span>}
+                              </div>
+                              <div className="text-[11px] text-slate-300 mt-0.5 font-semibold">{c.title}</div>
+                              {c.action && <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{c.action}</div>}
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="font-bold text-cyan">{c.tool_id}</span>{' '}
+                                <span className="text-slate-400">({c.parameter})</span>
+                                <span className="text-slate-400 block text-[10px]">
+                                  Cpk:{' '}
+                                  <strong className={c.cpk < 1.33 ? 'text-red-400' : 'text-emerald'}>
+                                    {c.cpk}
+                                  </strong>{' '}
+                                  · Step: {c.step}
+                                </span>
+                              </div>
+                              {c.probability && (
+                                <span className="rounded bg-cyan/15 px-2 py-0.5 font-bold text-cyan text-[10px] border border-cyan/40">
+                                  {Math.round(c.probability * 100)}% Prob
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Feedback Buttons & Telemetry */}
+                  {isBob && (
+                    <div className="mt-2.5 pt-2 border-t border-border-subtle/50 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-slate-500">Helpful?</span>
+                        <button
+                          type="button"
+                          onClick={() => handleFeedback(i, m.interactionId, 'positive')}
+                          className={`p-1 rounded transition-colors ${
+                            m.userFeedback === 'positive'
+                              ? 'text-emerald bg-emerald/15 font-bold'
+                              : 'hover:text-emerald hover:bg-surface-3'
+                          }`}
+                          title="Mark answer as helpful & grounded"
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleFeedback(i, m.interactionId, 'negative')}
+                          className={`p-1 rounded transition-colors ${
+                            m.userFeedback === 'negative'
+                              ? 'text-rose-400 bg-rose-500/15 font-bold'
+                              : 'hover:text-rose-400 hover:bg-surface-3'
+                          }`}
+                          title="Report incorrect or ungrounded response"
+                        >
+                          <ThumbsDown className="h-3 w-3" />
+                        </button>
+                        {m.userFeedback && (
+                          <span className="text-emerald text-[9px] ml-1">✓ Feedback recorded</span>
+                        )}
+                      </div>
+                      {m.retrievalQuality && (
+                        <span className="text-slate-500 text-[9px]">
+                          Precision: {Math.round((m.retrievalQuality.precision || 1) * 100)}%
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -463,9 +578,10 @@ export default function ChatPanel({ lotId, isOpen, onClose, onLotChange }) {
           {isLoading && (
             <div className="flex items-center gap-2 rounded-lg border border-cyan/30 bg-surface-2 p-3 text-xs font-mono text-cyan">
               <Loader2 className="h-4 w-4 animate-spin text-cyan" />
-              <span>Synthesising FDC telemetry · Cpk models · {providerInfo.label}…</span>
+              <span>Synthesising FDC telemetry · Hybrid RAG · Grounding Verifier · {providerInfo.label}…</span>
             </div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
 

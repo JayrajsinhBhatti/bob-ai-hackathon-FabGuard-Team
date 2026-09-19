@@ -161,7 +161,10 @@ def copilot_chat(
     from copilot.agent import ask_bob, create_bob_session
 
     if client is None:
-        client = get_llm_client()
+        try:
+            client = get_llm_client()
+        except Exception:
+            client = None
 
     if conversation_history:
         messages = conversation_history

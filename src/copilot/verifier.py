@@ -37,6 +37,7 @@ Usage:
         print(result.audit_summary)
 """
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -58,15 +59,15 @@ _CPK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Tool IDs: ETCH-07, LITHO-03, CVD-11, CMP-02, IMPLANT-05
+# Tool IDs: ETCH-07, LITHO-03, CVD-11, CMP-02, IMPLANT-05 (ignore SOP- and PM- prefixes)
 _TOOL_PATTERN = re.compile(
-    r"\b((?:ETCH|LITHO|CVD|CMP|IMPLANT|etch|litho|cvd|cmp|implant)-\d+)\b",
+    r"(?<!SOP-)(?<!PM-)(?<!sop-)(?<!pm-)\b((?:ETCH|LITHO|CVD|CMP|IMPLANT|etch|litho|cvd|cmp|implant)-\d{2})\b",
     re.IGNORECASE,
 )
 
-# Probabilities: "78%", "82% probability", "78 percent"
+# Probabilities: "78%", "82% probability", "78 percent" (excluding decimals like 80.34%)
 _PROB_PATTERN = re.compile(
-    r"(\d{1,3})\s*%(?:\s+probability)?",
+    r"(?<![\.\d])(\d{1,3})\s*%(?:\s+probability)?",
     re.IGNORECASE,
 )
 
@@ -148,15 +149,50 @@ class GroundingVerifier:
         return cpks
 
     def _extract_reference_tool_ids(self, findings: Dict[str, Any]) -> List[str]:
-        """Pull all tool IDs referenced in findings."""
+        """Pull all tool IDs referenced in findings, equipment routing, and active fab inventory."""
         tools = set()
         for cause in findings.get("candidate_causes", []):
             tid = cause.get("tool_id")
             if tid:
                 tools.add(tid.upper())
-        for batch in findings.get("at_risk_upcoming_batches", []):
-            # batches may not have tool_id but keep for completeness
+        for eq in findings.get("equipment_used", []):
+            if isinstance(eq, str):
+                tools.add(eq.upper())
+            elif isinstance(eq, dict) and eq.get("tool_id"):
+                tools.add(eq.get("tool_id").upper())
+        for tool in findings.get("all_fab_tools", []):
+            tools.add(str(tool).upper())
+
+        # Pull actual fab tool IDs from database if present
+        try:
+            import sqlite3
+            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bob_fab.db")
+            if not os.path.exists(db_path):
+                db_path = "src/bob_fab.db"
+            if os.path.exists(db_path):
+                with sqlite3.connect(db_path) as conn:
+                    for r in conn.cursor().execute("SELECT DISTINCT tool_id FROM process_steps;").fetchall():
+                        if r[0]:
+                            tools.add(r[0].upper())
+        except Exception:
             pass
+
+        # Pull historical fab tools from SOP knowledge base if present
+        try:
+            import json
+            kb_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "knowledge", "fab_sop_kb.json")
+            if not os.path.exists(kb_path):
+                kb_path = "src/data/knowledge/fab_sop_kb.json"
+            if os.path.exists(kb_path):
+                with open(kb_path, "r", encoding="utf-8") as f:
+                    kb_data = json.load(f)
+                    for sop in kb_data:
+                        for prec in sop.get("root_cause_precedents", []):
+                            for tm in _TOOL_PATTERN.finditer(prec):
+                                tools.add(tm.group(1).upper())
+        except Exception:
+            pass
+
         return list(tools)
 
     def _extract_reference_probabilities(self, findings: Dict[str, Any]) -> List[float]:
@@ -235,13 +271,15 @@ class GroundingVerifier:
 
         checks: List[ClaimCheck] = []
 
+        # Reference sigmas from findings plus standard fab control limits (1.5, 2.0, 3.0, 6.0)
+        valid_sigmas = list(ref_sigmas) + [1.5, 2.0, 3.0, 6.0]
         # --- Extract and check sigma values ---
         for m in _SIGMA_PATTERN.finditer(llm_text):
             try:
                 val = float(m.group(1))
             except ValueError:
                 continue
-            grounded = self._is_grounded_numeric(val, ref_sigmas, self.tol_sigma)
+            grounded = self._is_grounded_numeric(val, valid_sigmas, self.tol_sigma)
             checks.append(ClaimCheck(
                 entity_type="sigma",
                 extracted_value=m.group(0),
@@ -288,6 +326,14 @@ class GroundingVerifier:
             # Only check if above 1% (filter out incidental percentages like "2% yield")
             if val < 5 or val > 100:
                 continue
+
+            ctx = self._get_context(llm_text, m).lower()
+            # Only treat as a probability claim if context indicates probability/confidence/likelihood
+            # Avoid flagging DOE factor levels (+/-5%), yield values, reductions, or spatial radii
+            is_prob_claim = any(kw in ctx for kw in ("probab", "confidence", "likelihood", "chance", "calibrated")) or bool(re.search(r"%\s+probability", m.group(0), re.IGNORECASE))
+            if not is_prob_claim:
+                continue
+
             grounded = self._is_grounded_numeric(
                 val, ref_probs, max(5.0, val * self.tol_numeric)
             ) if ref_probs else True
@@ -329,11 +375,12 @@ class GroundingVerifier:
         corrected = llm_text
         if ungrounded:
             for claim in ungrounded:
-                corrected = corrected.replace(
-                    claim.extracted_value,
-                    f"[UNVERIFIED: {claim.extracted_value}]",
-                    1,
-                )
+                val = claim.extracted_value
+                if f"[UNVERIFIED: {val}]" in corrected:
+                    continue
+                # Replace only bare occurrences not already inside [UNVERIFIED: ...]
+                pattern = r'(?<!\[UNVERIFIED:\s)(?<!\[UNVERIFIED:)\b' + re.escape(val) + r'\b(?!\s*\])'
+                corrected = re.sub(pattern, f"[UNVERIFIED: {val}]", corrected, count=1)
 
         # Build audit summary
         summary_lines = [
@@ -396,3 +443,184 @@ def verify_text_against_findings(
     """
     verifier = GroundingVerifier(tolerance_sigma=tolerance_sigma, tolerance_numeric=tolerance_numeric)
     return verifier.verify(llm_text, findings)
+
+
+# ---------------------------------------------------------------------------
+# Retrieval Evaluation & Domain Scope Verification (Concepts 9 & 10)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RetrievalEvaluationResult:
+    """Quantitative evaluation of retrieval quality and utilization in the generated response."""
+    retrieval_precision: float      # Fraction of retrieved docs cited in the response (0.0 to 1.0)
+    retrieval_recall: float         # Fraction of key findings entities present in retrieved docs (0.0 to 1.0)
+    context_utilization: float      # Lexical / semantic utilization of retrieved context in answer (0.0 to 1.0)
+    cited_doc_ids: List[str]        # Doc IDs explicitly cited in the answer
+    retrieved_doc_ids: List[str]    # Doc IDs that were fed to the context
+    summary: str                    # Human-readable summary of retrieval quality
+
+
+class RetrievalEvaluator:
+    """
+    Evaluates retrieval precision, recall, and context utilization
+    to provide feedback signals for self-improvement.
+    """
+
+    def evaluate(
+        self,
+        query: str,
+        retrieved_docs: List[Dict[str, Any]],
+        answer_text: str,
+        findings: Optional[Dict[str, Any]] = None,
+    ) -> RetrievalEvaluationResult:
+        if not retrieved_docs:
+            return RetrievalEvaluationResult(
+                retrieval_precision=1.0,
+                retrieval_recall=1.0,
+                context_utilization=1.0,
+                cited_doc_ids=[],
+                retrieved_doc_ids=[],
+                summary="No retrieval requested or required for this query.",
+            )
+
+        retrieved_ids = [
+            doc.get("doc_id") or doc.get("id") or str(i)
+            for i, doc in enumerate(retrieved_docs)
+        ]
+
+        # 1. Retrieval Precision: Docs cited in answer / Total retrieved docs
+        cited_ids = []
+        answer_upper = answer_text.upper()
+        for doc in retrieved_docs:
+            doc_id = doc.get("doc_id") or doc.get("id") or ""
+            title = doc.get("title", "")
+            # Check if doc_id or title is mentioned in the answer
+            if doc_id and doc_id.upper() in answer_upper:
+                cited_ids.append(doc_id)
+            elif title and len(title) > 6 and title.upper() in answer_upper:
+                cited_ids.append(doc_id or title)
+
+        precision = len(cited_ids) / max(len(retrieved_docs), 1)
+        # Cap at 1.0
+        precision = min(1.0, round(precision, 4))
+
+        # 2. Retrieval Recall: Fraction of findings entities captured in retrieved docs
+        target_entities = set()
+        if findings:
+            for suspect in findings.get("suspect_tools", []):
+                if isinstance(suspect, dict):
+                    tool = suspect.get("tool_id") or suspect.get("tool")
+                    if tool:
+                        target_entities.add(str(tool).upper())
+                elif isinstance(suspect, str):
+                    target_entities.add(suspect.upper())
+
+            for param in findings.get("drift_parameters", []):
+                if isinstance(param, dict):
+                    p_name = param.get("parameter") or param.get("name")
+                    if p_name:
+                        target_entities.add(str(p_name).upper())
+                elif isinstance(param, str):
+                    target_entities.add(param.upper())
+
+            step = findings.get("process_step")
+            if step:
+                target_entities.add(str(step).upper())
+
+        if target_entities:
+            # Check how many target entities appear in retrieved doc content
+            combined_docs_text = " ".join(
+                f"{d.get('title', '')} {d.get('content', '')} {d.get('equipment_type', '')}"
+                for d in retrieved_docs
+            ).upper()
+
+            matched_entities = sum(
+                1 for ent in target_entities if ent in combined_docs_text
+            )
+            recall = round(matched_entities / len(target_entities), 4)
+        else:
+            recall = 1.0  # If no specific findings entities to match, neutral 1.0
+
+        # 3. Context Utilization: Overlap between retrieved keywords and answer keywords
+        stop_words = {
+            "the", "a", "an", "and", "or", "in", "on", "at", "to", "for",
+            "with", "by", "from", "is", "are", "was", "were", "this", "that",
+            "these", "those", "it", "its", "as", "be", "of", "lot", "bob"
+        }
+        all_doc_words = set(re.findall(r"\b[A-Za-z0-9_-]{3,}\b", " ".join(
+            f"{d.get('title', '')} {d.get('content', '')}" for d in retrieved_docs
+        ).lower())) - stop_words
+
+        answer_words = set(re.findall(r"\b[A-Za-z0-9_-]{3,}\b", answer_text.lower())) - stop_words
+
+        if all_doc_words and answer_words:
+            overlap = len(all_doc_words.intersection(answer_words))
+            # Ratio of retrieved concepts actually incorporated
+            utilization = round(min(1.0, overlap / min(len(all_doc_words), 30)), 4)
+        else:
+            utilization = 0.5
+
+        summary = (
+            f"Retrieval Evaluation: Precision={precision*100:.1f}% ({len(cited_ids)}/{len(retrieved_docs)} cited), "
+            f"Recall={recall*100:.1f}%, Context Utilization={utilization*100:.1f}%."
+        )
+
+        return RetrievalEvaluationResult(
+            retrieval_precision=precision,
+            retrieval_recall=recall,
+            context_utilization=utilization,
+            cited_doc_ids=cited_ids,
+            retrieved_doc_ids=retrieved_ids,
+            summary=summary,
+        )
+
+
+class DomainScopeGate:
+    """
+    Enforces that copilot queries and responses stay strictly within
+    semiconductor fab operations, yield analysis, process engineering, and DOE.
+    Hard-blocks off-topic queries (cooking, gaming, general coding, politics, etc.).
+    """
+
+    OUT_OF_SCOPE_TERMS = {
+        "recipe", "cook", "bake", "weather in", "football", "soccer", "basketball",
+        "movie", "celebrity", "crypto", "bitcoin", "horoscope", "dating", "restaurant",
+        "translate to french", "translate to spanish", "write a poem about love",
+        "president of", "capital of", "who won", "song lyrics", "video game"
+    }
+
+    FAB_KEYWORDS = {
+        "lot", "wafer", "fab", "etch", "litho", "cmp", "cvd", "pvd", "implant",
+        "cpk", "sigma", "yield", "doe", "defect", "recipe", "chamber", "spc",
+        "parameter", "drift", "excursion", "disposition", "scrap", "rework",
+        "semiconductor", "inspection", "metrology", "cleanroom", "rf", "gas",
+        "pressure", "temperature", "focus", "exposure", "overlay", "critical dimension"
+    }
+
+    @classmethod
+    def check_query_scope(cls, query: str) -> Tuple[bool, str]:
+        """Returns (in_scope, message)."""
+        q_lower = query.lower().strip()
+        for term in cls.OUT_OF_SCOPE_TERMS:
+            if re.search(r"\b" + re.escape(term) + r"\b", q_lower):
+                return (
+                    False,
+                    "I am FabGuard Copilot ('Ask Bob'), specialized strictly in semiconductor "
+                    "manufacturing, yield engineering, fab operations, and process DOE. "
+                    "I cannot assist with topics outside this domain."
+                )
+        return True, ""
+
+    @classmethod
+    def check_response_scope(cls, text: str) -> Tuple[bool, str]:
+        """Checks if generated response inadvertently veered into out-of-scope domain."""
+        t_lower = text.lower()
+        for term in cls.OUT_OF_SCOPE_TERMS:
+            if re.search(r"\b" + re.escape(term) + r"\b", t_lower):
+                return (
+                    False,
+                    "Response flagged by Domain Scope Gate: generated text strayed outside "
+                    "semiconductor domain."
+                )
+        return True, ""
+

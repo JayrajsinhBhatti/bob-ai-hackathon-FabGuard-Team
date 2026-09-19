@@ -70,3 +70,7 @@ data/exports/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Scratch & temporary files
+scratch/
+~$*

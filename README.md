@@ -101,6 +101,8 @@ cp src/.env.example .env
 ```bash
 python src/mcp_server.py
 ```
+backend: python src\backend\app\main.py
+frontend: npm run dev
 
 ### 4. Interactive CLI Tool Verification
 ```bash

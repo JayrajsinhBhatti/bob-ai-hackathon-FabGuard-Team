@@ -27,6 +27,9 @@ import json
 import os
 import sys
 import traceback
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Path bootstrap — ensure repo root and src are importable regardless of cwd
